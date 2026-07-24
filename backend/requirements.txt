@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+google-play-scraper
+app-store-scraper
+praw
+pandas
+sentence-transformers
+python-multipart
+python-dotenv
+groq
+openai
+scikit-learn
+chromadb
