@@ -12,10 +12,14 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Blinkit Discovery Engine API")
 
+import os
+
+# Allow all origins so the Vercel frontend can always reach this Railway backend.
+# For a production app with auth, restrict this to specific Vercel URLs instead.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

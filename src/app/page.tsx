@@ -1,38 +1,34 @@
-import { redirect } from "next/navigation";
-import { API_BASE } from "@/lib/api";
+import { Sidebar } from "@/components/sidebar/Sidebar";
+import { LiveFetchPanel } from "@/components/dashboard/LiveFetchPanel";
 
-async function getLatestRun(): Promise<string | null> {
-  try {
-    const res = await fetch(`${API_BASE}/api/runs`, { cache: "no-store" });
-    if (!res.ok) return null;
-    const runs = await res.json();
-    if (!runs || runs.length === 0) return null;
-    // Prefer the most recent run that has actual data
-    const runWithData = runs.find(
-      (r: { id: string; source_counts: { scraped: number } }) =>
-        r.source_counts?.scraped > 0
-    );
-    return runWithData?.id ?? runs[0].id;
-  } catch (error) {
-    console.error("Error fetching root runs:", error);
-    return null;
-  }
-}
-
-export default async function Home() {
-  const latestRunId = await getLatestRun();
-  if (latestRunId) {
-    redirect(`/runs/${latestRunId}/overview`);
-  }
-
+export default function Home() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-blinkit-dark">
-      <div className="text-center max-w-md">
-        <div className="w-16 h-16 rounded-2xl bg-blinkit-green flex items-center justify-center mx-auto mb-6 font-black text-white text-2xl">B</div>
-        <h1 className="text-2xl font-bold text-foreground mb-2">Blinkit Discovery Engine</h1>
-        <p className="text-blinkit-muted text-sm mb-6">No research runs found. Start the backend and trigger a data collection run.</p>
-        <p className="text-xs text-blinkit-muted font-mono bg-blinkit-card border border-blinkit-border px-4 py-2 rounded-lg">POST {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/runs/create</p>
-      </div>
+    <div className="flex h-screen overflow-hidden bg-blinkit-dark">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto p-10">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Header card */}
+          <div className="rounded-2xl border border-blinkit-border bg-blinkit-card p-8">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl bg-blinkit-green flex items-center justify-center font-black text-white text-base glow-green">
+                B
+              </div>
+              <h1 className="text-2xl font-bold text-foreground">
+                Blinkit <span className="gradient-text">Discovery Engine</span>
+              </h1>
+            </div>
+            <p className="text-sm text-blinkit-muted leading-7 max-w-2xl">
+              Configure your data sources below, set how many reviews to fetch per source, then click{" "}
+              <span className="text-blinkit-green font-semibold">Start Data Ingestion</span>.
+              The AI pipeline will scrape, clean, classify, cluster and generate insights automatically —
+              then take you straight to the dashboard when it finishes.
+            </p>
+          </div>
+
+          {/* Main fetch panel — this is where you start a run */}
+          <LiveFetchPanel />
+        </div>
+      </main>
     </div>
   );
 }
