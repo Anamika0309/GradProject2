@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
 import { RunProvider, RunData } from "@/context/RunContext";
 import { RunSidebar } from "@/components/sidebar/Sidebar";
-import { API_BASE } from "@/lib/api";
+
+// Server-to-server fetch: no CORS, use Railway URL directly.
+const BACKEND_URL =
+  process.env.BACKEND_URL ?? "https://gradproject2-production.up.railway.app";
 
 async function getRunData(runId: string): Promise<RunData | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/runs/${runId}`, { cache: "no-store" });
+    const res = await fetch(`${BACKEND_URL}/api/runs/${runId}`, { cache: "no-store" });
     if (!res.ok) return null;
     const data = await res.json();
     if (data.error) return null;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -94,7 +94,7 @@ export function Sidebar({ className }: { className?: string }) {
 
   const GLOBAL_NAV = [
     { name: "Home", href: "/", icon: LayoutDashboard },
-    { name: "Research Runs", href: "/runs", icon: BarChart3 },
+    { name: "Research Runs", href: "/repository", icon: BarChart3 },
     { name: "New Run", href: "/new-run", icon: Zap },
   ];
 
