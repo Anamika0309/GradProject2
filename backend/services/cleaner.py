@@ -1,64 +1,52 @@
 import re
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+import hashlib
 
 class ReviewCleaner:
     def __init__(self):
-        try:
-            self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        except Exception as e:
-            print(f"Error loading SentenceTransformer: {e}")
-            self.model = None
+        # No heavy model loaded at init — keeps Railway startup fast and memory safe
+        pass
 
     def clean(self, text: str) -> str:
         if not isinstance(text, str):
             return ""
         text = text.strip()
-        text = re.sub(r'http\S+', '', text)         # Remove URLs
-        text = re.sub(r'[^\w\s.,!?\'"-]', '', text) # Remove special chars
-        text = re.sub(r'\s+', ' ', text)             # Normalize whitespace
+        text = re.sub(r'http\S+', '', text)          # Remove URLs
+        text = re.sub(r'[^\w\s.,!?\'\"-]', '', text) # Remove special chars
+        text = re.sub(r'\s+', ' ', text)              # Normalize whitespace
         return text.strip()
 
     def is_spam(self, text: str) -> bool:
-        if not text:
+        if not text or len(text.strip()) < 5:
             return True
-
         spam_patterns = [
-            # r'^(great|good|bad|ok|nice|worst)\s*app?$',
-            r'^\d+$',
-            # r'(.)\1{4,}',
+            r'^\d+$',                  # only digits
         ]
         return any(re.search(p, text.lower()) for p in spam_patterns)
 
     def deduplicate(self, records: list[dict]) -> list[dict]:
         """
-        records is a list of dicts containing 'raw_text'.
-        Uses batched cosine similarity to avoid O(n²) memory blowup on large datasets.
+        Fast hash-based deduplication — O(n) time and memory.
+        Removes exact-duplicate and near-duplicate reviews by normalising text
+        before hashing (lowercase, collapse whitespace, strip punctuation).
+        This is safe to run on 5000+ reviews without OOM on Railway free tier.
         """
-        if not self.model or not records:
-            return records
-
-        texts = [r['raw_text'] for r in records]
-        embeddings = self.model.encode(texts, batch_size=64, show_progress_bar=False)
-
-        seen_embeddings = []
+        seen_hashes: set[str] = set()
         unique_records = []
-        THRESHOLD = 0.92  # lowered from 0.96 so near-duplicate (but distinct) reviews survive
 
-        for i, emb in enumerate(embeddings):
-            if not seen_embeddings:
-                seen_embeddings.append(emb)
-                unique_records.append(records[i])
-                continue
+        for r in records:
+            text = r.get('raw_text', '')
+            # Normalise: lowercase, strip punctuation, collapse spaces
+            normalised = re.sub(r'[^\w\s]', '', text.lower())
+            normalised = re.sub(r'\s+', ' ', normalised).strip()
+            # Also create a shorter fingerprint (first 200 chars) to catch
+            # reviews that are identical except for a trailing sentence
+            fingerprint = normalised[:200]
+            h = hashlib.md5(fingerprint.encode('utf-8')).hexdigest()
+            if h not in seen_hashes:
+                seen_hashes.add(h)
+                unique_records.append(r)
 
-            # Compare against seen embeddings in one matrix op
-            seen_matrix = np.array(seen_embeddings)
-            sims = cosine_similarity([emb], seen_matrix)[0]
-            if sims.max() < THRESHOLD:
-                seen_embeddings.append(emb)
-                unique_records.append(records[i])
-
+        print(f"[cleaner] Dedup: {len(records)} → {len(unique_records)} unique reviews")
         return unique_records
 
     def tag_discovery(self, text: str) -> bool:

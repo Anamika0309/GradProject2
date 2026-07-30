@@ -1,7 +1,4 @@
 import pandas as pd
-import praw
-from google_play_scraper import reviews, Sort
-from app_store_scraper import AppStore
 import os
 from dotenv import load_dotenv
 
@@ -9,19 +6,32 @@ load_dotenv()
 
 def fetch_play_store(
     app_id: str = "com.grofers.customerapp",
-    count: int = 1000,
-    keywords: list[str] = ["new category", "explore", "reorder", "discover", "suggest", "never tried"]
+    count: int = 1500,
+    keywords: list[str] | None = None
 ) -> list[dict]:
     import time
-    print(f"Fetching up to {count * 10} Play Store reviews to filter...")
-    result, _ = reviews(
-        app_id,
-        lang='en',
-        country='in',
-        sort=Sort.NEWEST,
-        count=count * 10  # fetch more because we will filter heavily
-    )
-    
+    try:
+        from google_play_scraper import reviews, Sort
+    except Exception as e:
+        print(f"Play Store scraper not available: {e}")
+        return []
+
+    keywords = keywords or []
+    # Fetch 2x the requested count to allow for filtering — safe on Railway free tier
+    fetch_target = min(count * 2, 3000)
+    print(f"Fetching up to {fetch_target} Play Store reviews (target: {count})...")
+    try:
+        result, _ = reviews(
+            app_id,
+            lang='en',
+            country='in',
+            sort=Sort.NEWEST,
+            count=fetch_target
+        )
+    except Exception as e:
+        print(f"Error fetching Play Store reviews: {e}")
+        return []
+
     filtered = []
     for r in result:
         content_lower = r['content'].lower()
@@ -36,14 +46,16 @@ def fetch_play_store(
             })
             if len(filtered) >= count:
                 break
+    print(f"Play Store: fetched {len(filtered)} reviews")
     return filtered
 
 def fetch_app_store(
     app_name: str = "blinkit",
     app_id: str = "1491249118",
-    count: int = 1000
+    count: int = 1500
 ) -> list[dict]:
     print(f"Fetching up to {count} App Store reviews...")
+    from app_store_scraper import AppStore
     app = AppStore(country='in', app_name=app_name, app_id=app_id)
     app.review(how_many=count)
     
@@ -64,22 +76,26 @@ def fetch_app_store(
 
 def fetch_reddit(
     subreddits: list[str] = ["blinkit", "india", "bangalore", "mumbai", "quickcommerce"],
-    keywords: list[str] = ["blinkit", "quick commerce", "grofers"],
-    limit: int = 500
+    keywords: list[str] | None = None,
+    limit: int = 1500
 ) -> list[dict]:
     import time
     try:
+        import praw
+
         reddit = praw.Reddit(
             client_id=os.environ.get("REDDIT_CLIENT_ID"),
             client_secret=os.environ.get("REDDIT_CLIENT_SECRET"),
             user_agent=os.environ.get("REDDIT_USER_AGENT", "blinkit_research_bot/1.0")
         )
-        
+
         posts = []
+        kws = keywords or []
+        query = " OR ".join(kws) if kws else "blinkit"
         for sub in subreddits:
             try:
                 print(f"Searching subreddit {sub}...")
-                for submission in reddit.subreddit(sub).search(" OR ".join(keywords), limit=limit, sort="new"):
+                for submission in reddit.subreddit(sub).search(query, limit=limit, sort="new"):
                     posts.append({
                         "source": f"reddit__{sub}",
                         "raw_text": f"{submission.title}\n{submission.selftext}",
